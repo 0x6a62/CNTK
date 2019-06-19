@@ -47,7 +47,8 @@ enum class LearningRateSearchAlgorithm : int
 enum class AdaptationRegType : int
 {
     None,
-    KL
+    KL,
+    TS
 };
 
 enum class GradientsUpdateType : int
@@ -266,6 +267,8 @@ protected:
     bool m_doGradientCheck;
     double m_gradientCheckSigDigit;
 
+    //RNNT TS
+    ConfigArray m_outputNodeNames;
     bool m_doUnitTest;
 
     bool m_useAllDataForPreComputedNode;

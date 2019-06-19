@@ -17,6 +17,8 @@
 #include "InputAndParamNodes.h"
 #include "AccumulatorAggregation.h"
 
+//#include "SequencePacker.h"
+
 #ifdef CNTK_PARALLEL_TRAINING_SUPPORT
 //static inline bool operator==(const std::pair<double,size_t>& a, double b) { assert(b==0); return a.first == b; }
 // ^^ workaround until this line in AggregateGradientsImpl() gets updated: assert(headerCPU->evalErrors[i] == 0);
@@ -1236,6 +1238,45 @@ size_t SGD<ElemType>::TrainOneEpoch(ComputationNetworkPtr net,
                                               dynamic_pointer_cast<ComputationNode<ElemType>>(labelNodes[0])->Value());
             }
 
+            //RNNT TS
+            if (m_needAdaptRegularization && m_adaptationRegType == AdaptationRegType::TS && refNode)
+            {
+                vector<wstring> outputNodeNamesVector;
+                for (wstring name : m_outputNodeNames)
+                {
+                    if (!refNet->NodeNameExists(name))
+                    {
+                        fprintf(stderr, "PatchOutputNodes: No node named '%ls'; skipping\n", name.c_str());
+                        continue;
+                    }
+                    outputNodeNamesVector.push_back(name);
+                }
+                std::vector<std::wstring> encodeOutputNodeNames(outputNodeNamesVector.begin(), outputNodeNamesVector.begin() + 1);
+                std::vector<ComputationNodeBasePtr> encodeOutputNodes = refNet->OutputNodesByName(encodeOutputNodeNames);
+                std::vector<ComputationNodeBasePtr> encodeInputNodes = refNet->InputNodesForOutputs(encodeOutputNodeNames);
+                StreamMinibatchInputs encodeInputMatrices = DataReaderHelpers::RetrieveInputMatrices(encodeInputNodes);
+
+                auto reffeainput = encodeInputMatrices.begin();
+                auto feainput = (*inputMatrices).begin();
+                auto encodeMBLayout = feainput->second.pMBLayout;
+                reffeainput->second.GetMatrix<ElemType>().SetValue(feainput->second.GetMatrix<ElemType>());
+
+                //get decode input matrix
+                std::vector<std::wstring> decodeOutputNodeNames(outputNodeNamesVector.begin() + 1, outputNodeNamesVector.begin() + 2);
+                std::vector<ComputationNodeBasePtr> decodeOutputNodes = refNet->OutputNodesByName(decodeOutputNodeNames);
+                std::vector<ComputationNodeBasePtr> decodeinputNodes = refNet->InputNodesForOutputs(decodeOutputNodeNames);
+                StreamMinibatchInputs decodeinputMatrices = DataReaderHelpers::RetrieveInputMatrices(decodeinputNodes);
+
+                auto lminput = decodeinputMatrices.begin();
+                auto decodeMBLayout = lminput->second.pMBLayout;
+
+                vector<vector<size_t>> outputlabels;
+                refNet->RNNT_decode_greedy(outputNodeNamesVector, reffeainput->second.GetMatrix<ElemType>(), *encodeMBLayout, reffeainput->second.GetMatrix<ElemType>(), *decodeMBLayout, outputlabels, 1.0);
+                //DataReaderHelpers::
+                
+               //StreamBatch batch;
+
+            }
             // do forward and back propagation
 
             // We optionally break the minibatch into sub-minibatches.
@@ -1250,10 +1291,7 @@ size_t SGD<ElemType>::TrainOneEpoch(ComputationNetworkPtr net,
                     ComputationNetwork::BumpEvalTimeStamp(labelNodes);
                 }
 
-
-                //add decoding here for shecdule sampleing 
-
-
+                //add decoding here for shecdule sampleing
 
                 // ===========================================================
                 // forward prop for evaluate eval nodes
@@ -1407,7 +1445,6 @@ size_t SGD<ElemType>::TrainOneEpoch(ComputationNetworkPtr net,
                     double p_norm = dynamic_pointer_cast<ComputationNode<ElemType>>(node)->Gradient().FrobeniusNorm();
                     //long m = (long) GetNumElements();
                     totalNorm += p_norm * p_norm;
-
                 }
             }
             totalNorm = sqrt(totalNorm);
@@ -2861,6 +2898,8 @@ static AdaptationRegType ParseAdaptationRegType(const wstring& s)
         return AdaptationRegType::None;
     else if (EqualCI(s, L"kl") || EqualCI(s, L"klReg"))
         return AdaptationRegType::KL;
+    else if (EqualCI(s, L"ts") )
+        return AdaptationRegType::TS;
     else
         InvalidArgument("ParseAdaptationRegType: Invalid Adaptation Regularization Type. Valid values are (none | kl)");
 }
@@ -3073,6 +3112,9 @@ SGDParams::SGDParams(const ConfigRecordType& configSGD, size_t sizeofElemType)
     // gradient check setup
     m_doGradientCheck = configSGD(L"gradientcheck", false);
     m_gradientCheckSigDigit = configSGD(L"sigFigs", 6.0); // TODO: why is this a double?
+
+    //RNNT TS
+    m_outputNodeNames = configSGD(L"OutputNodeNames", ConfigArray(""));
 
     if (m_doGradientCheck && sizeofElemType != sizeof(double))
     {

@@ -32,7 +32,7 @@ namespace CNTK
 template <class ElemType>
 class SimpleOutputWriter
 {
- 
+
     typedef shared_ptr<ComputationNode<ElemType>> ComputationNodePtr;
 
 public:
