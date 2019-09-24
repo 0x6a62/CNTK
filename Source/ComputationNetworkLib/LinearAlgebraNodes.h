@@ -249,6 +249,20 @@ public:
         //SetDims(TensorShape::Scalar(Environment().IsV2Library()), false);
     }
 
+
+    //request matrix before forward prop
+    virtual void RequestMatricesBeforeForwardProp(MatrixPool& matrixPool)
+    {
+        Base::RequestMatricesBeforeForwardProp(matrixPool);
+    }
+
+    // release gradient and temp matrices that no longer needed after all the children's gradients are computed.
+    virtual void ReleaseMatricesAfterBackprop(MatrixPool& matrixPool)
+    {
+        Base::ReleaseMatricesAfterBackprop(matrixPool);
+    }
+
+
 protected:
     // Prepare data structures from the reader
     // the position of the first frame of each utterance in the minibatch channel. We need this because each channel may contain more than one utterance.
@@ -907,6 +921,14 @@ public:
         // TensorView::DoMatrixProductOf() will reduce each tensor object into a 2D tensor (or fail if it cannot)
         // and recreate actual Matrix objects (in case of sparse, they must be identical to the original tensor storage object).
         // Transposition is applied after flattening into 2D, but only allowed if the input sample is 2D anyway.
+
+        //to fix the error for time reduction ad-hoc
+        /*if (m_pMBLayout != InputRef(1).GetMBLayout() && m_pMBLayout != InputRef(0).GetMBLayout())
+        {
+            m_pMBLayout = InputRef(1).GetMBLayout();
+            //m_pMBLayout->SetUniqueAxisName(L"TimeReduction");
+        }*/
+
         auto input0 = OneSampleTensorFor(0, /*gradient=*/false, fr.AllowBroadcast());
         auto input1 = OneSampleTensorFor(1, /*gradient=*/false, fr.AllowBroadcast());
         auto output = OneSampleTensorFor(-1, /*gradient=*/false, fr);

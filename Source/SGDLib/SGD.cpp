@@ -1001,6 +1001,9 @@ size_t SGD<ElemType>::TrainOneEpoch(ComputationNetworkPtr net,
                                     const int startEpoch)
 {
     PROFILE_SCOPE(profilerEvtMainEpoch);
+    //for schedule sampling
+    std::random_device rd;
+    std::mt19937_64 randGen{rd()};
 
     ScopedNetworkOperationMode modeGuard(net, NetworkOperationMode::training);
 
@@ -1246,6 +1249,11 @@ size_t SGD<ElemType>::TrainOneEpoch(ComputationNetworkPtr net,
                     ComputationNetwork::BumpEvalTimeStamp(featureNodes);
                     ComputationNetwork::BumpEvalTimeStamp(labelNodes);
                 }
+
+
+                //add decoding here for shecdule sampleing 
+
+
 
                 // ===========================================================
                 // forward prop for evaluate eval nodes
